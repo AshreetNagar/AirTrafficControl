@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aircraft Control Page</title>
+</head>
+<body>
+    <h1>Responses Section</h1>
+    <h4>Latest Result Message</h4>
+    <p id="Status">Hello World!</p>
+
+    <h1>Network Configuration</h1>
+    <p>Validator Address</p>
+    <input id="gRPCAddress">
+    <p>New Aircraft Parked</p>
+    <input type="checkbox" id="newAcParked">
+    <p>New Aircraft Name</p>
+    <input id="newAcName">
+    <p>AC Comms URL (please use a public address)</p>
+    <input id="commsUrl">
+    <button onclick=setConfig()>Submit Config Update</button>
+
+
+    <h1>Aircraft Parameters</h1>
+    <button onclick=getAcParameters()>Get Aircraft Parameters</button>
+
+    <h1>Autopilot Status</h1>
+    <p id="autopilotMode"></p>
+    <p id="autopilotCommand"></p>
+
+    <h1>Aircraft and Engine Controls</h1>
+    <div class="slidecontainer">
+        <p>Pitch</p>
+        <input type="range" min="0" max="6.28" step="0.1" value="0" class="slider" id="pitchSlider" onchange=updateControlSurfaces()>
+        <br><p>Roll</p>
+        <input type="range" min="0" max="6.28" step="0.1" value="0" class="slider" id="rollSlider" onchange=updateControlSurfaces()>
+        <br><p>Yaw</p>
+        <input type="range" min="0" max="6.28" step="0.1" value="0" class="slider" id="yawSlider" onchange=updateControlSurfaces()>
+    </div>
+    <div class="slidecontainer">
+        <p id="engine0Name">Engine 1</p>
+        <input type="range" min="0" max="100" value="0" class="slider" id="engineSlider0" onchange=updateenginesState()>
+    </div>
+    
+    <h1>Inbound Message Queue</h1>
+    <button onclick=getMessageQueue()>Refresh</button>
+    <table id="messageQueue" style="border: 1px solid black;">
+    </table>
+
+    <h1>Message Log</h1>
+    <button onclick=getMessageLog()>Refresh</button>
+    <table id="messageLog" style="border: 1px solid black;">
+    </table>
+
+
+
+</body>
+<script>
+
+    // UI Design
+    // Load AC Params to get AC Name and Engine count
+        // For each engine, add a throttle slider at the correct state
+    // Load AC State
+        // Display status
+        // For pitch, roll, yaw, add a slider  
+    // Load Incoming message queue
+        // Display each, with response dropdown
+    // Load message log
+        // Display
+    // Websocket
+        // When disconnected, simulated pilot flies
+        // Upon connect, velocity is displayed reacting to control inputs 
+
+
+    const baseUrl = window.location.origin
+    const acParamsUrl = baseUrl+"/acParams"
+    const acStateUrl = baseUrl+"/acState"
+    const engineBaseUrl = baseUrl+"/engine"
+    const messageQueueUrl = baseUrl+"/queue/msg"
+    const messageLogUrl = baseUrl+"/log/msg"
+    const configUrl = baseUrl+"/config"
+
+    function getConfig(){
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("GET", configUrl , false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send();
+        msgQ = JSON.parse(xmlHttp.responseText).content
+        document.getElementById("gRPCAddress").value = msgQ.gRPCAddress
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;      
+        document.getElementById("commsUrl").value= window.location.origin;    
+    }
+
+    function setConfig(){
+        var xmlHttp = new XMLHttpRequest();
+        var acLocCheck = "Airborne"
+        if (document.getElementById("newAcParked").checked){
+            acLocCheck = "Parked"
+        }
+        var configData = {
+            gRPCAddress : document.querySelector("#gRPCAddress").value,
+            acName: document.querySelector("#newAcName").value,
+            acLoc: acLocCheck,
+            acCommsUrl : document.getElementById("commsUrl").value
+        }
+        xmlHttp.open("POST", configUrl, false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send(JSON.stringify(configData));
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;  
+        getConfig()
+    }
+
+    function getAcParameters(){
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("GET", acParamsUrl, false); // false for synchronous request
+        xmlHttp.send(null);
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;
+    }
+    function updateControlSurfaces(){
+        let newAcState = {
+            pitch: parseFloat(document.querySelector("#pitchSlider").value),
+            yaw: parseFloat(document.querySelector("#yawSlider").value),
+            roll: parseFloat(document.querySelector("#rollSlider").value)
+        }
+        console.log(newAcState)
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("PUT", acStateUrl , false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send(JSON.stringify(newAcState));
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;
+    }
+    function updateenginesState(){
+        var engineId = 0
+        let newEngineState = {
+            engineNum : engineId,
+            thrust : parseFloat(document.querySelector("#engineSlider"+engineId).value)
+        }
+        var engineUrl = engineBaseUrl + "/" + engineId
+        console.log(engineUrl)
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("PATCH", engineUrl , false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send(JSON.stringify(newEngineState));
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;        
+    }
+    function getMessageQueue(){
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("GET", messageQueueUrl , false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send();
+        msgQ = JSON.parse(xmlHttp.responseText).content
+
+        var table = document.getElementById("messageQueue");
+        table.innerHTML = ""
+        insRowResp = table.insertRow()
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Sender"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Message"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Time Sent"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Acknowledge"
+
+        Object.entries(msgQ).forEach(element => {
+            console.log(element[0])
+            insRowResp = table.insertRow()
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].sender
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].message
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].timeSent
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = "<button>Acknowledge</button>"
+            insCell.onclick = function() {ackMessage(element[0])} 
+
+        });
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;                
+    }
+
+    function ackMessage(msgId){
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("DELETE", messageQueueUrl+"/"+msgId , false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send();
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;                
+        getMessageQueue()
+        getMessageLog()
+    }
+
+    function getMessageLog(){
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("GET", messageLogUrl , false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send();
+        msgQ = JSON.parse(xmlHttp.responseText).content
+
+        var table = document.getElementById("messageLog");
+        table.innerHTML = ""
+        insRowResp = table.insertRow()
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Sender"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Recipient"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Message"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Time Sent"
+
+
+        Object.entries(msgQ).forEach(element => {
+            console.log(element[0])
+            insRowResp = table.insertRow()
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].sender
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].recipient
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].message
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].timeSent
+
+        });
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;                
+    }
+
+</script>
+</html>

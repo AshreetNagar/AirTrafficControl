@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATC Control Page</title>
+</head>
+<body>
+    <h1>DEBUG: HTTP Responses Section</h1>
+    <h4>Latest Result Message</h4>
+    <p id="Status">Hello World!</p>
+
+    <h1>Network Configuration</h1>
+    <p>Validator Address</p>
+    <input id="gRPCAddress">
+    <button onclick=setConfig()>Submit Config Update</button>
+
+    <h1>Send Message</h1>
+    <p>Sender Channel (please set to public ip)</p>
+    <input id="senderChannel">
+    <p>Recipient</p>
+    <input id="recipient">
+    <p>Message</p>
+    <input id="message">
+    <p>Message Type</p>
+    <input name="msgType" id="msgType" type="radio" value="COMMAND">
+    <label>COMMAND</label><br>
+    <input name="msgType" id="msgType" type="radio" value="ACK">
+    <label>ACK</label><br>
+    <button onclick=postMessage()>Submit Message</button>
+
+    <h1>Inbound Message Queue</h1>
+    <button onclick=getMessageQueue()>Refresh</button>
+    <table id="messageQueue" style="border: 1px solid black;">
+    </table>
+
+    <h1>Message Log</h1>
+    <button onclick=getMessageLog()>Refresh</button>
+    <table id="messageLog" style="border: 1px solid black;">
+    </table>
+
+
+
+</body>
+<script>
+
+    // UI Design
+    // Load AC Params to get AC Name and Engine count
+        // For each engine, add a throttle slider at the correct state
+    // Load AC State
+        // Display status
+        // For pitch, roll, yaw, add a slider  
+    // Load Incoming message queue
+        // Display each, with response dropdown
+    // Load message log
+        // Display
+    // Websocket
+        // When disconnected, simulated pilot flies
+        // Upon connect, velocity is displayed reacting to control inputs 
+
+
+    const baseUrl = window.location.origin
+    const messageQueueUrl = baseUrl+"/queue/msg"
+    const messageLogUrl = baseUrl+"/log/msg"
+    const configUrl = baseUrl+"/config"
+
+    function getConfig(){
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("GET", configUrl , false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send();
+        msgQ = JSON.parse(xmlHttp.responseText).content
+        document.getElementById("gRPCAddress").value = msgQ.gRPCAddress
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;                
+        document.getElementById("senderChannel").value = baseUrl
+    }
+
+    function setConfig(){
+        var xmlHttp = new XMLHttpRequest();
+        var configData = {
+            gRPCAddress : document.querySelector("#gRPCAddress").value,
+        }
+        xmlHttp.open("POST", configUrl, false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send(JSON.stringify(configData));
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;  
+        getConfig()
+    }
+
+
+    function getMessageQueue(){
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("GET", messageQueueUrl , false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send();
+        msgQ = JSON.parse(xmlHttp.responseText).content
+
+        var table = document.getElementById("messageQueue");
+        table.innerHTML = ""
+        insRowResp = table.insertRow()
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Sender"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Message"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Time Sent"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Acknowledge"
+
+        Object.entries(msgQ).forEach(element => {
+            console.log(element[0])
+            insRowResp = table.insertRow()
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].sender
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].message
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].timeSent
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = "<button>Acknowledge</button>"
+            insCell.onclick = function() {ackMessage(element[0])} 
+
+        });
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;                
+    }
+
+    function ackMessage(msgId){
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("DELETE", messageQueueUrl+"/"+msgId , false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send();
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;                
+        getMessageQueue()
+        getMessageLog()
+    }
+
+    function getMessageLog(){
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("GET", messageLogUrl , false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send();
+        msgQ = JSON.parse(xmlHttp.responseText).content
+
+        var table = document.getElementById("messageLog");
+        table.innerHTML = ""
+        insRowResp = table.insertRow()
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Sender"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Recipient"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Message"
+        insCell = insRowResp.insertCell()
+        insCell.innerHTML = "Time Sent"
+
+
+        Object.entries(msgQ).forEach(element => {
+            console.log(element[0])
+            insRowResp = table.insertRow()
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].sender
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].recipient
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].message
+            insCell = insRowResp.insertCell()
+            insCell.style.cssText = "border: 1px solid black;"
+            insCell.innerHTML = element[1].timeSent
+
+        });
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;                
+    }
+
+    function postMessage(){
+        var d = new Date();
+        var seconds = Math.round(d.getTime() / 1000);
+        var logMessage = {
+            sender : "ATC",
+            recipient : document.querySelector("#recipient").value,
+            message : document.querySelector("#message").value,
+            msgType : document.querySelector('input[name="msgType"]:checked').value,
+            senderChannel : document.getElementById("senderChannel").value+"/queue/msg",
+            recipientChannel : "http://127.0.0.1:8001/queue/msg",
+            handled : "False",
+            timeSent : seconds
+        }
+        console.log(logMessage)
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open("POST", messageLogUrl , false); // false for synchronous request
+        xmlHttp.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+        xmlHttp.send(JSON.stringify(logMessage));
+        document.getElementById("Status").innerHTML = xmlHttp.responseText;    
+        getMessageLog()
+        getMessageQueue()
+    }
+
+    // const delay = ms => new Promise(res => setTimeout(res, ms));
+    // const yourFunction = async () => {
+    //     while (true){
+    //         await delay(5000);
+    //         console.log("Waited 5s");
+    //         getMessageLog()
+    //         await delay(5000);
+    //         console.log("Waited an additional 5s");
+    //         getMessageQueue()
+    //     }
+
+    // };
+
+    getConfig()
+
+
+</script>
+</html>

@@ -1,0 +1,60 @@
+syntax = "proto2";
+
+service validator{
+    rpc AcGetList (ACListReq) returns (AcListResp) {}
+    rpc AcUpdateVel (AcUpdateReq) returns (AcUpdateResp) {}
+    rpc AcAdd (ACData) returns (AcAddResp ) {}
+    rpc VisiblityGet (VisiblityGetReq) returns (VisiblityGetResp) {}
+    rpc AcGet (AcGetReq) returns (ACData) {}
+}
+
+message position{
+    required float xPos = 2;
+    required float yPos = 3;
+    required float zPos = 4;
+}
+message velocity{
+    required float xVel = 2;
+    required float yVel = 3;
+    required float zVel = 4;
+}
+message ACData{
+    required string name = 1;
+    required position acPos = 2;
+    required velocity acVel = 3;
+    required float acRad = 4;
+    required string commsUrl = 5; 
+}
+
+message ACListReq{
+}
+message AcListResp{
+    repeated ACData aircraftList = 1;
+}
+
+message AcUpdateReq{
+    required string name = 1;
+    required velocity newAcVel = 2;
+}
+message AcUpdateResp{
+    required string status = 1;
+}
+
+message AcAddResp{
+    required string status = 1;
+}
+
+message VisiblityGetReq{
+    optional position reqPos = 1;
+    optional float reqRange = 2;
+    optional string name = 3;
+}
+message VisiblityGetResp{
+    required string status = 1;
+    repeated ACData aircraftList = 2;
+}
+
+
+message AcGetReq{
+    required string name = 1;
+}
